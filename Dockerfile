@@ -1,13 +1,17 @@
-FROM python:latest
-
-RUN apt-get update && \
-    apt-get install -y stress-ng && \
-    rm -rf /var/lib/apt/lists/*
+FROM python:3.9-slim
 
 WORKDIR /app
 
-COPY . .
+RUN apt-get update && \
+    apt-get install -y python3 python3-pip python3-venv stress-ng iperf3 sysbench && \
+    rm -rf /var/lib/apt/lists/*
 
-RUN pip install -r requirements.txt
+RUN python3 -m venv /app/venv
 
-CMD ["python", "main.py"]
+COPY . /app
+
+RUN /app/venv/bin/pip install --no-cache-dir psutil
+
+ENV PATH="/app/venv/bin:$PATH"
+
+ENTRYPOINT ["python", "main.py"]
