@@ -3,6 +3,9 @@ import subprocess
 import time
 import logging
 import psutil
+from dotenv import load_dotenv
+from twilio.rest import Client
+import google.generativeai as genai
 
 # Logging configuration
 logging.basicConfig(
@@ -12,12 +15,40 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S"
 )
 
+load_dotenv()
+
+API_KEY = os.getenv("API_KEY")
+genai.configure(api_key=API_KEY)
+
+def fetch_logs():
+    with open('stress_test.log', 'r') as file:
+        lines = file.readlines()[-40:]
+    return ''.join(lines)
+
+def send_logs_to_api(logs):
+    model = genai.GenerativeModel("gemini-1.5-flash")
+    response = model.generate_content(f"You are an SRE. You have to suggest troubleshooting steps based on the given logs in 200 words.\n{logs}")
+    print(response.text)
+    return response.text
+
+def send_whatsapp_message(message_body):
+    account_sid = os.environ["ACC_SID"]
+    auth_token = os.environ["AUTH_TOKEN"]
+    client = Client(account_sid, auth_token)
+    sent_message = client.messages.create(
+        body=message_body,
+        from_=os.environ["from_whatsapp_number"],
+        to=os.environ["to_whatsapp_number"]
+    )
+    print("WhatsApp message sent with SID:", sent_message.sid)
+    return sent_message.sid
+
 def memory_stress_test():
     logging.info("Starting Memory Stress Test...")
     print("Starting Memory Stress Test...")
     try:
         stress_process = subprocess.Popen(
-            ["stress-ng", "--vm", "1", "--vm-bytes", "80%", "-t", "60s"],
+            ["stress-ng", "--vm", "1", "--vm-bytes", "80%", "-t", "30s"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
         )
@@ -44,7 +75,7 @@ def disk_stress_test():
     print("Starting Disk Stress Test...")
     try:
         stress_process = subprocess.Popen(
-            ["stress-ng", "--iomix", "4", "--iomix-bytes", "90%", "--timeout", "60"],
+            ["stress-ng", "--iomix", "4", "--iomix-bytes", "90%", "--timeout", "30"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
         )
@@ -71,7 +102,7 @@ def network_stress_test():
     print("Starting Network Stress Test...")
     try:
         result = subprocess.run(
-            ['iperf3', '-c', '192.168.29.157', '-t', '30'],
+            ['iperf3', '-c', '192.168.1.7', '-t', '30'],
             capture_output=True,
             text=True
         )
@@ -99,7 +130,7 @@ def cpu_stress_test():
     print("Starting CPU Stress Test...")
     try:
         stress_process = subprocess.Popen(
-            ["stress-ng", "--cpu", "4", "--cpu-load", "80", "-t", "30s"],
+            ["stress-ng", "--cpu", "4", "--cpu-load", "80", "-t", "60s"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
         )
@@ -124,15 +155,15 @@ def cpu_stress_test():
 
 def mysql_stress_test():
     logging.info("Starting MySQL Stress Test...")
-    vm2_ip = '192.168.29.157'
+    vm2_ip = '192.168.1.7'
     process = subprocess.Popen([
         'sysbench',
         '--test=/usr/share/sysbench/oltp_read_only.lua',
-        '--mysql-db=test',
-        '--mysql-user=exporter',
-        '--mysql-password=',
+        '--mysql-db=random',
+        '--mysql-user=stress',
+        '--mysql-password=password',
         f'--mysql-host={vm2_ip}',
-        '--max-time=60',
+        '--max-time=30',
         '--max-requests=0',
         '--threads=2',
         'run'
@@ -184,6 +215,12 @@ def main():
             break
         else:
             print("Invalid choice. Please try again.")
+
+        logs = fetch_logs()
+        analysis_result = send_logs_to_api(logs)
+        #print(analysis_result)
+        if analysis_result:
+            send_whatsapp_message(analysis_result)
 
 if __name__ == "__main__":
     main()
