@@ -102,7 +102,7 @@ def network_stress_test():
     print("Starting Network Stress Test...")
     try:
         result = subprocess.run(
-            ['iperf3', '-c', '192.168.1.7', '-t', '30'],
+            ['iperf3', '-c', '192.168.29.157', '-t', '30'],
             capture_output=True,
             text=True
         )
@@ -155,7 +155,7 @@ def cpu_stress_test():
 
 def mysql_stress_test():
     logging.info("Starting MySQL Stress Test...")
-    vm2_ip = '192.168.1.7'
+    vm2_ip = '192.168.29.157'
     process = subprocess.Popen([
         'sysbench',
         '--test=/usr/share/sysbench/oltp_read_only.lua',
